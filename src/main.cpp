@@ -28,8 +28,9 @@ std::string hasData(std::string s) {
   return "";
 }
 
-int main()
+int main(int argc, const char** argv)
 {
+
   uWS::Hub h;
 
   PID pid_steer;
