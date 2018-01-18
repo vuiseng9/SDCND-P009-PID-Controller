@@ -3,6 +3,7 @@
 #include "json.hpp"
 #include "PID.h"
 #include <math.h>
+#include "cxxopts.hpp"
 
 // for convenience
 using json = nlohmann::json;
@@ -16,38 +17,96 @@ double rad2deg(double x) { return x * 180 / pi(); }
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
 std::string hasData(std::string s) {
-  auto found_null = s.find("null");
-  auto b1 = s.find_first_of("[");
-  auto b2 = s.find_last_of("]");
-  if (found_null != std::string::npos) {
+    auto found_null = s.find("null");
+    auto b1 = s.find_first_of("[");
+    auto b2 = s.find_last_of("]");
+
+    if (found_null != std::string::npos) {
+        return "";
+    }
+    else if (b1 != std::string::npos && b2 != std::string::npos) {
+        return s.substr(b1, b2 - b1 + 1);
+    }
     return "";
-  }
-  else if (b1 != std::string::npos && b2 != std::string::npos) {
-    return s.substr(b1, b2 - b1 + 1);
-  }
-  return "";
 }
 
-int main(int argc, const char** argv)
+int main(int argc, char* argv[])
 {
+ 
+    uWS::Hub h;
 
-  uWS::Hub h;
+    PID pid_steer;
+    int step = 0;
+    float SSE = 0; //sum of square error for twiddle
 
-  PID pid_steer;
+    try
+    {
+        cxxopts::Options options(argv[0], "");
+        options
+            .positional_help("[optional args]")
+            .show_positional_help();
 
-  int step = 0;
-  float SSE = 0; //sum of square error for twiddle
+        options.add_options()
+            ("h,help",                 "Print Usage")
+            ("t,twiddle",              "enable twiddle to tune Kp, Ki, Kd", cxxopts::value<bool>())
+            ("p,proportional_gain",    "set/initialize proportional gain, Kp", cxxopts::value<float>())
+            ("i,integral_gain",        "set/initialize integral gain, Kp", cxxopts::value<float>())
+            ("d,derivative_gain",      "set/initialize derivative, Kp", cxxopts::value<float>())
+            ;
 
-  pid_steer.is_twiddle = true;
-  if (pid_steer.is_twiddle) {
-      pid_steer.Init(pid_steer.gain[0], pid_steer.gain[1], pid_steer.gain[2]);  
-      //pid_steer.Init(4.35924, 0, 9.33881);
-  } else {
-      // Tuned Kp, Ki, Kd
-      // 4.35924, 0, 9.33881
+        auto args = options.parse(argc, argv);
+
+        if (args["twiddle"].as<bool>()) {
+            std::cout << "-I- Twiddle Tuning Enabled" << std::endl;
+            pid_steer.is_twiddle = true;
+        }
+
+        if (args.count("proportional_gain") + args.count("integral_gain") + args.count("derivative_gain") == 3) {
+            std::cout << "-I- Use user-specified Kp, Ki, Kd" << std::endl;
+            
+            if (args.count("proportional_gain")) 
+                pid_steer.gain[0] = args["p"].as<float>();
+
+            if (args.count("integral_gain"))
+                pid_steer.gain[1] = args["i"].as<float>();
+
+            if (args.count("derivative_gain"))
+                pid_steer.gain[2] = args["d"].as<float>();
+
+        } else {
+            std::cout << "-I- Use pretuned Kp, Ki, Kd" << std::endl;
+            pid_steer.gain[0] = 4.35924;
+            pid_steer.gain[1] = 0;
+            pid_steer.gain[2] = 9.3;
+        }
+        
+        std::cout << "Initializing PID for steering with Kp: " << 
+            pid_steer.gain[0] << 
+            ", Ki: " << pid_steer.gain[1] << 
+            ", Kd: " << pid_steer.gain[2] << 
+            std::endl;
+
+        pid_steer.Init(pid_steer.gain[0], pid_steer.gain[1], pid_steer.gain[2]);
+
+    } catch (const cxxopts::OptionException& e)
+    {
+        std::cout << "error parsing options: " << e.what() << std::endl;
+        exit(1);
+    }
+
+/*
+    int step = 0;
+    float SSE = 0; //sum of square error for twiddle
+
+    if (pid_steer.is_twiddle) {
+        pid_steer.Init(pid_steer.gain[0], pid_steer.gain[1], pid_steer.gain[2]);  
+        //pid_steer.Init(4.35924, 0, 9.33881);
+    } else {
+        // Tuned Kp, Ki, Kd
+        // 4.35924, 0, 9.33881
       pid_steer.Init(4.35924, 0, 9.33881);
-  }
-
+    }
+*/
   h.onMessage([&pid_steer, &step, &SSE](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     step++;
     // "42" at the start of the message means there's a websocket message event.

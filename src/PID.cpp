@@ -10,7 +10,7 @@ using namespace std;
 PID::PID() {
     is_twiddle = false;
     twiddle_tol = 0.005;
-    twiddle_endstep = 500;
+    twiddle_endstep = 50;
     twiddle_iter = 0;
     twiddle_best_sse = 999999999;
 
