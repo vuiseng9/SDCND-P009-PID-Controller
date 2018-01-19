@@ -75,9 +75,9 @@ int main(int argc, char* argv[])
 
         } else {
             std::cout << "-I- Use pretuned Kp, Ki, Kd" << std::endl;
-            pid_steer.gain[0] = 4.35924;
-            pid_steer.gain[1] = 0;
-            pid_steer.gain[2] = 9.3;
+            pid_steer.gain[0] = 0.5;
+            pid_steer.gain[1] = 0.01;
+            pid_steer.gain[2] = 2;
         }
         
         std::cout << "Initializing PID for steering with Kp: " << 
@@ -94,19 +94,6 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-/*
-    int step = 0;
-    float SSE = 0; //sum of square error for twiddle
-
-    if (pid_steer.is_twiddle) {
-        pid_steer.Init(pid_steer.gain[0], pid_steer.gain[1], pid_steer.gain[2]);  
-        //pid_steer.Init(4.35924, 0, 9.33881);
-    } else {
-        // Tuned Kp, Ki, Kd
-        // 4.35924, 0, 9.33881
-      pid_steer.Init(4.35924, 0, 9.33881);
-    }
-*/
   h.onMessage([&pid_steer, &step, &SSE](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     step++;
     // "42" at the start of the message means there's a websocket message event.
@@ -133,26 +120,37 @@ int main(int argc, char* argv[])
 
           if (pid_steer.is_twiddle) 
           {
-
+            // Triggle twiddle loop when number of step reaching threshold or 
+            // when accumulated SSE is already over best SSE 
             if ((step > pid_steer.twiddle_endstep) || (SSE > pid_steer.twiddle_best_sse)) {
+                std::cout << std::endl;
                 std::string reset_msg = "42[\"reset\",{}]";
                 ws.send(reset_msg.data(), reset_msg.length(), uWS::OpCode::TEXT);
 
-                //next iteration
+                //Call to twiddle loop
                 pid_steer.Twiddle(SSE);
-                //pid_steer.Init(pid_steer.gain[0], pid_steer.gain[1], pid_steer.gain[2]);
+
+                // reset step count and SSE accumulator
                 step = 0;
                 SSE = 0;
                 
-                //iter++;
             }
 
             SSE += cte*cte;
-            std::cout << "iter: " << pid_steer.twiddle_iter << ", step: " << step << ", curr_param:" << pid_steer.curr_param 
-                << ", state: " << pid_steer.state <<
-               ", gain: " << pid_steer.Kp << ", " << pid_steer.Ki << ", " << pid_steer.Kd << 
-               ", d_gain: " << pid_steer.d_gain[0] << ", " << pid_steer.d_gain[1] << ", " << pid_steer.d_gain[2] <<
-               ", SSE: " << std::setw(15) << SSE << "\n";
+
+            std::cout.precision(3);
+            std::cout   << "\repoch: "      << std::setw(3) << pid_steer.twiddle_cnt/3 
+                        << ", step: "       << std::setw(4) << step 
+                        << ", gain_idx: "   << std::setw(1) << pid_steer.gain_idx 
+                        << ", state: "      << std::setw(1) << pid_steer.state 
+                        << ", Kp: "         << std::setw(6) <<pid_steer.Kp 
+                        << ", Ki: "         << std::setw(6) << pid_steer.Ki 
+                        << ", Kd:"          << std::setw(6) << pid_steer.Kd 
+                        << ", d_Kp: "       << std::setw(6) << pid_steer.d_gain[0] 
+                        << ", d_Ki: "       << std::setw(6) << pid_steer.d_gain[1] 
+                        << ", d_Kd: "       << std::setw(6) << pid_steer.d_gain[2] 
+                        << ", Best SSE: "   << std::setw(10) << pid_steer.twiddle_best_sse
+                        << ", SSE: "        << std::setw(10) << SSE ;
 
           } 
 
@@ -194,7 +192,7 @@ int main(int argc, char* argv[])
   });
 
   h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
-    std::cout << "Connected!!!" << std::endl;
+    //std::cout << "Connected!!!" << std::endl;
   });
 
   h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code, char *message, size_t length) {

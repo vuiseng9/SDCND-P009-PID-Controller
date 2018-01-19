@@ -4,14 +4,16 @@
 class PID {
 public:
   bool      is_twiddle; 
+  bool      is_twiddle_init;
   float     twiddle_tol;
   int       twiddle_endstep;
-  int       twiddle_iter;
+  int       twiddle_cnt;
   float     twiddle_best_sse;
   float     d_gain[3]; 
-  float     gain[3];   // current gain, convention Kp, Ki, Kd
-  int       curr_param;
-  char      state;
+  float     gain[3];    // current gain, convention Kp, Ki, Kd
+  int       gain_idx;   // index to d_gain/gain, 0: P, 1: I, 2: D
+  int       state;
+
   /*
   * Errors
   */

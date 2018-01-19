@@ -3,31 +3,33 @@
 
 using namespace std;
 
+enum STATE
+{
+    ASCENT = 0,
+    DESCENT
+};
 /*
 * TODO: Complete the PID class.
 */
 
 PID::PID() {
-    is_twiddle = false;
-    twiddle_tol = 0.005;
-    twiddle_endstep = 50;
-    twiddle_iter = 0;
-    twiddle_best_sse = 999999999;
+    is_twiddle        = false;
+    is_twiddle_init   = false;
+    twiddle_tol       = 0.005;
+    twiddle_endstep   = 200;
+    twiddle_cnt       = 0;
+    twiddle_best_sse  = 9999999;
 
-    gain[0] = 1.0f;
+    gain[0] = 0.0f;
     gain[1] = 0.0f;
     gain[2] = 0.0f;
-   
-    gain[0] = 4.4f;
-    gain[1] = 0.0f;
-    gain[2] = 9.3f;
  
     d_gain[0] = 1.0f;
     d_gain[1] = 1.0f;
     d_gain[2] = 1.0f;
     
-    curr_param = 0;
-	state = 'a';
+    gain_idx = 0;   //0: P, 1: I, 2: D
+	state = ASCENT;
 }
 
 PID::~PID() {}
@@ -53,44 +55,53 @@ double PID::TotalError() {
 }
 
 void PID::Twiddle(double SSE) {
-    std::cout << "I got this: " << SSE << std::endl;
+
+    if (!is_twiddle_init) {
+        twiddle_best_sse = SSE;
+        gain[gain_idx] += d_gain[gain_idx];
+        Init(gain[0], gain[1], gain[2]);
+        state = ASCENT;
+        is_twiddle_init = true;
+        return;
+    }
 
 	switch (state) {
-		case 'a':
+		case ASCENT:
 			if (SSE < twiddle_best_sse) {
         		twiddle_best_sse = SSE;
-        		d_gain[curr_param] *= 1.1;
+        		d_gain[gain_idx] *= 1.1;
 
-        		curr_param = (curr_param + 1) % 3;
-				gain[curr_param] += d_gain[curr_param];
+        		gain_idx = (gain_idx + 1) % 3;
+				gain[gain_idx] += d_gain[gain_idx];
 				Init(gain[0], gain[1], gain[2]);
-				state = 'a';
-				twiddle_iter++;
+				state = ASCENT;
+				twiddle_cnt++;
     		} else {
-        		gain[curr_param] -= 2 * d_gain[curr_param];
+        		gain[gain_idx] -= 2 * d_gain[gain_idx];
         		Init(gain[0], gain[1], gain[2]);
-				state = 'b';
+				state = DESCENT;
     		}
 			break;
 
-		case 'b':
+		case DESCENT:
 		    if (SSE < twiddle_best_sse) {
         		twiddle_best_sse = SSE;
-        		d_gain[curr_param] *= 1.1;
+        		d_gain[gain_idx] *= 1.1;
     		} else {
-        		gain[curr_param] += d_gain[curr_param];
-        		d_gain[curr_param] *= 0.9;
+        		gain[gain_idx] += d_gain[gain_idx];
+        		d_gain[gain_idx] *= 0.9;
     		}
-    		curr_param = (curr_param + 1) % 3;
-			gain[curr_param] += d_gain[curr_param];
+    		gain_idx = (gain_idx + 1) % 3;
+			gain[gain_idx] += d_gain[gain_idx];
         	Init(gain[0], gain[1], gain[2]);
-			state = 'a';
-			twiddle_iter++;
+			state = ASCENT;
+			twiddle_cnt++;
 			break;
 
 		default:
-			std::cout << "[BUG!!!]" << std::endl;
+			std::cout << "[ERROR - BUG!!!]" << std::endl;
 			break;
 	}
+    return;
 }
 
