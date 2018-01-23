@@ -16,7 +16,7 @@ PID::PID() {
     is_twiddle        = false;
     is_twiddle_init   = false;
     twiddle_tol       = 0.005;
-    twiddle_endstep   = 200;
+    twiddle_endstep   = 300;
     twiddle_cnt       = 0;
     twiddle_best_sse  = 9999999;
 

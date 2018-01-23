@@ -75,9 +75,9 @@ int main(int argc, char* argv[])
 
         } else {
             std::cout << "-I- Use pretuned Kp, Ki, Kd" << std::endl;
-            pid_steer.gain[0] = 0.5;
-            pid_steer.gain[1] = 0.01;
-            pid_steer.gain[2] = 2;
+            pid_steer.gain[0] = 0.05;
+            pid_steer.gain[1] = 0.002;
+            pid_steer.gain[2] = 0.7;
         }
         
         std::cout << "Initializing PID for steering with Kp: " << 
@@ -111,6 +111,20 @@ int main(int argc, char* argv[])
           double speed = std::stod(j[1]["speed"].get<std::string>());
           double angle = std::stod(j[1]["steering_angle"].get<std::string>());
           double steer_value;
+
+          std::cout.precision(3);
+ 
+          if (!pid_steer.is_twiddle) {         
+          std::cout << "cte: "      << std::setw(8) << cte 
+                    << ", speed: "  << std::setw(8) << speed 
+                    << ", angle: "  << std::setw(8) << angle << std::endl;
+          }
+          // Sum of square error - cost function for twiddle
+          // cross track error and also
+          SSE += cte*cte;
+          SSE += angle*angle;
+          SSE += pow((30 - speed),2); //reference speed is 30
+
           /*
           * TODO: Calcuate steering value here, remember the steering value is
           * [-1, 1].
@@ -134,16 +148,20 @@ int main(int argc, char* argv[])
                 step = 0;
                 SSE = 0;
                 
-            }
+            } 
+            
+          /*  
+            // Sum of square error - cost function for twiddle
+            // cross track error and also
 
             SSE += cte*cte;
-
-            std::cout.precision(3);
+            SSE += angle*angle;
+*/
             std::cout   << "\repoch: "      << std::setw(3) << pid_steer.twiddle_cnt/3 
                         << ", step: "       << std::setw(4) << step 
                         << ", gain_idx: "   << std::setw(1) << pid_steer.gain_idx 
                         << ", state: "      << std::setw(1) << pid_steer.state 
-                        << ", Kp: "         << std::setw(6) <<pid_steer.Kp 
+                        << ", Kp: "         << std::setw(6) << pid_steer.Kp 
                         << ", Ki: "         << std::setw(6) << pid_steer.Ki 
                         << ", Kd:"          << std::setw(6) << pid_steer.Kd 
                         << ", d_Kp: "       << std::setw(6) << pid_steer.d_gain[0] 
