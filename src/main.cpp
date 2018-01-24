@@ -48,10 +48,14 @@ int main(int argc, char* argv[])
 
         options.add_options()
             ("h,help",                 "Print Usage")
-            ("t,twiddle",              "enable twiddle to tune Kp, Ki, Kd", cxxopts::value<bool>())
             ("p,proportional_gain",    "set/initialize proportional gain, Kp", cxxopts::value<float>())
-            ("i,integral_gain",        "set/initialize integral gain, Kp", cxxopts::value<float>())
-            ("d,derivative_gain",      "set/initialize derivative, Kp", cxxopts::value<float>())
+            ("i,integral_gain",        "set/initialize integral gain, Ki", cxxopts::value<float>())
+            ("d,derivative_gain",      "set/initialize derivative, Kd", cxxopts::value<float>())
+            ("t,twiddle",              "enable twiddle to tune Kp, Ki, Kd", cxxopts::value<bool>())
+            ("n,n_steps",              "set elapsed steps per twiddle iteration", cxxopts::value<int>())
+            ("q,dp",                     "max delta of Kp change", cxxopts::value<float>())
+            ("j,di",                     "max delta of Ki change", cxxopts::value<float>())
+            ("e,dd",                     "max delta of Kp change", cxxopts::value<float>())
             ;
 
         auto args = options.parse(argc, argv);
@@ -60,6 +64,17 @@ int main(int argc, char* argv[])
             std::cout << "-I- Twiddle Tuning Enabled" << std::endl;
             pid_steer.is_twiddle = true;
         }
+
+        if (args.count("n_steps")) {
+            if (args["twiddle"].as<bool>()) {
+                pid_steer.twiddle_endstep = args["n"].as<int>();
+                std::cout << "-I- Setting twiddle n_steps to " << pid_steer.twiddle_endstep << std::endl;
+            } else {
+                std::cout << "-E- n_steps only works when twiddle tuning is enabled." << std::endl;
+                exit(1);
+            }
+        }
+
 
         if (args.count("proportional_gain") + args.count("integral_gain") + args.count("derivative_gain") == 3) {
             std::cout << "-I- Use user-specified Kp, Ki, Kd" << std::endl;
@@ -80,7 +95,7 @@ int main(int argc, char* argv[])
             pid_steer.gain[2] = 0.7;   //0.7;
         }
         
-        std::cout << "Initializing PID for steering with Kp: " << 
+        std::cout << "-I- Initializing PID for steering with Kp: " << 
             pid_steer.gain[0] << 
             ", Ki: " << pid_steer.gain[1] << 
             ", Kd: " << pid_steer.gain[2] << 
@@ -88,9 +103,25 @@ int main(int argc, char* argv[])
 
         pid_steer.Init(pid_steer.gain[0], pid_steer.gain[1], pid_steer.gain[2]);
 
+        if (args.count("dp") + args.count("di") + args.count("dd") == 3) {
+            if (args["twiddle"].as<bool>()) {
+                std::cout << "-I- Use user-specified d_Kp, d_Ki, d_Kd" << std::endl;
+                pid_steer.d_gain[0] = args["q"].as<float>();
+                pid_steer.d_gain[1] = args["j"].as<float>();
+                pid_steer.d_gain[2] = args["e"].as<float>();
+                std::cout << "d_Kp: " << pid_steer.d_gain[0] <<
+                             ", d_Ki: " << pid_steer.d_gain[1] <<
+                             ", d_Kd: " << pid_steer.d_gain[2] << std::endl;
+            } else {
+                std::cout << "-E- -q, -j, -e are to be used when twiddle tuning is enabled." << std::endl;
+                exit(1);
+            }
+        } else {
+            std::cout << "-I- Use default d_Kp, d_Ki, d_Kd, i.e. 1" << std::endl;
+        }
     } catch (const cxxopts::OptionException& e)
     {
-        std::cout << "error parsing options: " << e.what() << std::endl;
+        std::cout << "-E- Error parsing options: " << e.what() << std::endl;
         exit(1);
     }
 

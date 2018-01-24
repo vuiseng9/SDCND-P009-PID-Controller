@@ -24,9 +24,9 @@ PID::PID() {
     gain[1] = 0.0f;
     gain[2] = 0.0f;
  
-    d_gain[0] = 0.05f;
-    d_gain[1] = 0.005f;
-    d_gain[2] = 0.3f;
+    d_gain[0] = 1.0f;
+    d_gain[1] = 1.0f;
+    d_gain[2] = 1.0f;
     
     gain_idx = 0;   //0: P, 1: I, 2: D
 	state = ASCENT;
@@ -45,9 +45,9 @@ void PID::Init(double _Kp, double _Ki, double _Kd) {
 }
 
 void PID::UpdateError(double cte) {
-    d_error = cte - p_error;
-    i_error += cte;
-    p_error = cte;
+    d_error =   cte - p_error;
+    i_error +=  cte;
+    p_error =   cte;
 }
 
 double PID::TotalError() {
@@ -55,7 +55,7 @@ double PID::TotalError() {
 }
 
 void PID::Twiddle(double SSE) {
-
+    
     if (!is_twiddle_init) {
         twiddle_best_sse = SSE;
         gain[gain_idx] += d_gain[gain_idx];
@@ -99,7 +99,7 @@ void PID::Twiddle(double SSE) {
 			break;
 
 		default:
-			std::cout << "[ERROR - BUG!!!]" << std::endl;
+			std::cout << "[ERROR] - BUG!!!" << std::endl;
 			break;
 	}
     return;
