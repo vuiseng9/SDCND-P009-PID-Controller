@@ -75,9 +75,9 @@ int main(int argc, char* argv[])
 
         } else {
             std::cout << "-I- Use pretuned Kp, Ki, Kd" << std::endl;
-            pid_steer.gain[0] = 0.05;
-            pid_steer.gain[1] = 0.002;
-            pid_steer.gain[2] = 0.7;
+            pid_steer.gain[0] = 0.0547; //0.05;
+            pid_steer.gain[1] = 0.0014; //0.002;
+            pid_steer.gain[2] = 0.7;   //0.7;
         }
         
         std::cout << "Initializing PID for steering with Kp: " << 

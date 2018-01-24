@@ -16,7 +16,7 @@ PID::PID() {
     is_twiddle        = false;
     is_twiddle_init   = false;
     twiddle_tol       = 0.005;
-    twiddle_endstep   = 300;
+    twiddle_endstep   = 800;
     twiddle_cnt       = 0;
     twiddle_best_sse  = 9999999;
 
@@ -24,9 +24,9 @@ PID::PID() {
     gain[1] = 0.0f;
     gain[2] = 0.0f;
  
-    d_gain[0] = 1.0f;
-    d_gain[1] = 1.0f;
-    d_gain[2] = 1.0f;
+    d_gain[0] = 0.05f;
+    d_gain[1] = 0.005f;
+    d_gain[2] = 0.3f;
     
     gain_idx = 0;   //0: P, 1: I, 2: D
 	state = ASCENT;
