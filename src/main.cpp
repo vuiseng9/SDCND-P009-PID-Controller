@@ -3,7 +3,7 @@
 #include "json.hpp"
 #include "PID.h"
 #include <math.h>
-#include "cxxopts.hpp"
+#include "args.hxx"
 
 // for convenience
 using json = nlohmann::json;
@@ -39,93 +39,100 @@ int main(int argc, char* argv[])
     int step = 0;
     float SSE = 0; //sum of square error for twiddle
 
+    args::ArgumentParser parser("an PID controller app that drives Udacity SDC Simulator Lake Track", "This goes after the options.");
+    args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
+    args::Group gain_grp(parser, "kp, ki, kd need to coexist", args::Group::Validators::AllOrNone);
+    args::ValueFlag<float>  kp(gain_grp, "float", "set/initialize proportional gain", {"kp"});
+    args::ValueFlag<float>  ki(gain_grp, "float", "set/initialize integral gain", {"ki"});
+    args::ValueFlag<float>  kd(gain_grp, "float", "set/initialize derivative gain", {"kd"});
+    args::Flag              twiddle(parser, "twiddle", "enable twiddle mode to tune gain", {'t', "twiddle"});
+    args::ValueFlag<int>    n_step(parser, "int", "set number of step per twiddle iteration", {"n_step"});
+    args::Group dgain_grp(parser, "dp, di, dd need to coexist", args::Group::Validators::AllOrNone);
+    args::ValueFlag<float>  dp(dgain_grp, "float", "kp max tunable range", {"dp"});
+    args::ValueFlag<float>  di(dgain_grp, "float", "ki max tunable range", {"di"});
+    args::ValueFlag<float>  dd(dgain_grp, "float", "kd max tunable range", {"dd"});
+
+    args::ValueFlagList<char> characters(parser, "characters", "The character flag", {"cp"});
+
     try
     {
-        cxxopts::Options options(argv[0], "");
-        options
-            .positional_help("[optional args]")
-            .show_positional_help();
-
-        options.add_options()
-            ("h,help",                 "Print Usage")
-            ("p,proportional_gain",    "set/initialize proportional gain, Kp", cxxopts::value<float>())
-            ("i,integral_gain",        "set/initialize integral gain, Ki", cxxopts::value<float>())
-            ("d,derivative_gain",      "set/initialize derivative, Kd", cxxopts::value<float>())
-            ("t,twiddle",              "enable twiddle to tune Kp, Ki, Kd", cxxopts::value<bool>())
-            ("n,n_steps",              "set elapsed steps per twiddle iteration", cxxopts::value<int>())
-            ("q,dp",                     "max delta of Kp change", cxxopts::value<float>())
-            ("j,di",                     "max delta of Ki change", cxxopts::value<float>())
-            ("e,dd",                     "max delta of Kp change", cxxopts::value<float>())
-            ;
-
-        auto args = options.parse(argc, argv);
-
-        if (args["twiddle"].as<bool>()) {
-            std::cout << "-I- Twiddle Tuning Enabled" << std::endl;
-            pid_steer.is_twiddle = true;
-        }
-
-        if (args.count("n_steps")) {
-            if (args["twiddle"].as<bool>()) {
-                pid_steer.twiddle_endstep = args["n"].as<int>();
-                std::cout << "-I- Setting twiddle n_steps to " << pid_steer.twiddle_endstep << std::endl;
-            } else {
-                std::cout << "-E- n_steps only works when twiddle tuning is enabled." << std::endl;
-                exit(1);
-            }
-        }
-
-
-        if (args.count("proportional_gain") + args.count("integral_gain") + args.count("derivative_gain") == 3) {
-            std::cout << "-I- Use user-specified Kp, Ki, Kd" << std::endl;
-            
-            if (args.count("proportional_gain")) 
-                pid_steer.gain[0] = args["p"].as<float>();
-
-            if (args.count("integral_gain"))
-                pid_steer.gain[1] = args["i"].as<float>();
-
-            if (args.count("derivative_gain"))
-                pid_steer.gain[2] = args["d"].as<float>();
-
-        } else {
-            std::cout << "-I- Use pretuned Kp, Ki, Kd" << std::endl;
-            pid_steer.gain[0] = 0.0547; //0.05;
-            pid_steer.gain[1] = 0.0014; //0.002;
-            pid_steer.gain[2] = 0.7;   //0.7;
-        }
-        
-        std::cout << "-I- Initializing PID for steering with Kp: " << 
-            pid_steer.gain[0] << 
-            ", Ki: " << pid_steer.gain[1] << 
-            ", Kd: " << pid_steer.gain[2] << 
-            std::endl;
-
-        pid_steer.Init(pid_steer.gain[0], pid_steer.gain[1], pid_steer.gain[2]);
-
-        if (args.count("dp") + args.count("di") + args.count("dd") == 3) {
-            if (args["twiddle"].as<bool>()) {
-                std::cout << "-I- Use user-specified d_Kp, d_Ki, d_Kd" << std::endl;
-                pid_steer.d_gain[0] = args["q"].as<float>();
-                pid_steer.d_gain[1] = args["j"].as<float>();
-                pid_steer.d_gain[2] = args["e"].as<float>();
-                std::cout << "d_Kp: " << pid_steer.d_gain[0] <<
-                             ", d_Ki: " << pid_steer.d_gain[1] <<
-                             ", d_Kd: " << pid_steer.d_gain[2] << std::endl;
-            } else {
-                std::cout << "-E- -q, -j, -e are to be used when twiddle tuning is enabled." << std::endl;
-                exit(1);
-            }
-        } else {
-            std::cout << "-I- Use default d_Kp, d_Ki, d_Kd, i.e. 1" << std::endl;
-        }
-    } catch (const cxxopts::OptionException& e)
+        parser.ParseCLI(argc, argv);
+    }
+    catch (args::Help)
     {
-        std::cout << "-E- Error parsing options: " << e.what() << std::endl;
-        exit(1);
+        std::cout << parser;
+        return 0;
+    }
+    catch (args::ParseError e)
+    {
+        std::cerr << e.what() << std::endl;
+        std::cerr << parser;
+        return 1;
+    }
+    catch (args::ValidationError e)
+    {
+        std::cerr << e.what() << std::endl;
+        std::cerr << parser;
+        return 1;
     }
 
-  h.onMessage([&pid_steer, &step, &SSE](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+    if (twiddle) {
+        std::cout << "[Info] Twiddle Tuning Enabled" << std::endl;
+        pid_steer.is_twiddle = true;
+    }
+
+    if (n_step) {
+        if (twiddle) {
+            pid_steer.twiddle_endstep = args::get(n_step);
+            std::cout << "[Info] Setting twiddle n_steps to " << pid_steer.twiddle_endstep << std::endl;
+        } else {
+            std::cout << "[Error] n_steps only works when twiddle tuning is enabled." << std::endl;
+            exit(1);
+        }
+    }
+
+
+    if (kp && ki && kd) {
+        std::cout << "[Info] Use user-specified kp, ki, kd" << std::endl;
+        pid_steer.gain[0] = args::get(kp);
+        pid_steer.gain[1] = args::get(ki);
+        pid_steer.gain[2] = args::get(kd);
+    } else {
+        std::cout << "[Info] Use pretuned kp, ki, kd" << std::endl;
+        pid_steer.gain[0] = 0.0547; //0.05;
+        pid_steer.gain[1] = 0.0014; //0.002;
+        pid_steer.gain[2] = 0.7;    //0.7;
+    }
+    
+    std::cout << "[Info] Initializing PID for steering with kp: " << 
+        pid_steer.gain[0] << 
+        ", ki: " << pid_steer.gain[1] << 
+        ", kd: " << pid_steer.gain[2] << 
+        std::endl;
+
+    pid_steer.Init(pid_steer.gain[0], pid_steer.gain[1], pid_steer.gain[2]);
+
+    if (dp && di && dd) {
+        if (twiddle) {
+            std::cout << "[Info] Use user-specified dp, di, dd" << std::endl;
+            pid_steer.d_gain[0] = args::get(dp);
+            pid_steer.d_gain[1] = args::get(di);
+            pid_steer.d_gain[2] = args::get(dd);
+        } else {
+            std::cout << "[Error] dp, di, dd are to be used when twiddle tuning is enabled." << std::endl;
+            exit(1);
+        }
+    }
+    
+    if (twiddle) {
+        std::cout << "[Info] Twiddle with initial dp: " 
+				<< pid_steer.d_gain[0] <<
+            	", di: " << pid_steer.d_gain[1] <<
+            	", dd: " << pid_steer.d_gain[2] <<
+            	std::endl; 
+    }
+ 
+  	h.onMessage([&pid_steer, &step, &SSE](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     step++;
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -192,12 +199,12 @@ int main(int argc, char* argv[])
                         << ", step: "       << std::setw(4) << step 
                         << ", gain_idx: "   << std::setw(1) << pid_steer.gain_idx 
                         << ", state: "      << std::setw(1) << pid_steer.state 
-                        << ", Kp: "         << std::setw(6) << pid_steer.Kp 
-                        << ", Ki: "         << std::setw(6) << pid_steer.Ki 
-                        << ", Kd:"          << std::setw(6) << pid_steer.Kd 
-                        << ", d_Kp: "       << std::setw(6) << pid_steer.d_gain[0] 
-                        << ", d_Ki: "       << std::setw(6) << pid_steer.d_gain[1] 
-                        << ", d_Kd: "       << std::setw(6) << pid_steer.d_gain[2] 
+                        << ", kp: "         << std::setw(6) << pid_steer.Kp 
+                        << ", ki: "         << std::setw(6) << pid_steer.Ki 
+                        << ", kd:"          << std::setw(6) << pid_steer.Kd 
+                        << ", dp: "         << std::setw(6) << pid_steer.d_gain[0] 
+                        << ", di: "         << std::setw(6) << pid_steer.d_gain[1] 
+                        << ", dd: "         << std::setw(6) << pid_steer.d_gain[2] 
                         << ", Best SSE: "   << std::setw(10) << pid_steer.twiddle_best_sse
                         << ", SSE: "        << std::setw(10) << SSE ;
 
