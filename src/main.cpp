@@ -84,7 +84,7 @@ int main(int argc, char* argv[])
     if (n_step) {
         if (twiddle) {
             pid_steer.twiddle_endstep = args::get(n_step);
-            std::cout << "[Info] Setting twiddle n_steps to " << pid_steer.twiddle_endstep << std::endl;
+            std::cout << "[Info] Setting twiddle n_step to " << pid_steer.twiddle_endstep << std::endl;
         } else {
             std::cout << "[Error] n_steps only works when twiddle tuning is enabled." << std::endl;
             exit(1);
@@ -179,8 +179,8 @@ int main(int argc, char* argv[])
                 std::string reset_msg = "42[\"reset\",{}]";
                 ws.send(reset_msg.data(), reset_msg.length(), uWS::OpCode::TEXT);
 
-                //Call to twiddle loop
-                pid_steer.Twiddle(SSE);
+                // Call to twiddle loop - 1 to terminate, 0 continue twiddle tuning
+                if (pid_steer.Twiddle(SSE)) exit(1);
 
                 // reset step count and SSE accumulator
                 step = 0;

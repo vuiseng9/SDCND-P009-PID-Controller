@@ -54,26 +54,45 @@ double PID::TotalError() {
     return (-Kp * p_error) + (-Kd * d_error) + (-Ki * i_error);
 }
 
-void PID::Twiddle(double SSE) {
+int PID::Twiddle(double SSE) {
     
     if (!is_twiddle_init) {
         twiddle_best_sse = SSE;
+        best_gain[0]=gain[0];
+        best_gain[1]=gain[1];
+        best_gain[2]=gain[2];
+
         gain[gain_idx] += d_gain[gain_idx];
         Init(gain[0], gain[1], gain[2]);
+        
         state = ASCENT;
         is_twiddle_init = true;
-        return;
+        return 0;
+    }
+
+    // Exit twiddle if total of all delta is lower than tolerance
+    if (d_gain[0] + d_gain[1] + d_gain[2] < twiddle_tol) {
+        std::cout << "[Info] Twiddle Tuning Complete! Best SSE: "<< twiddle_best_sse
+            << ", kp: "  << best_gain[0] 
+            << ", ki: "  << best_gain[1]
+            << ", kd: "  << best_gain[2]
+            << std::endl;
+        return 1;
     }
 
 	switch (state) {
 		case ASCENT:
 			if (SSE < twiddle_best_sse) {
         		twiddle_best_sse = SSE;
-        		d_gain[gain_idx] *= 1.1;
+				best_gain[0]=gain[0];
+		        best_gain[1]=gain[1];
+        		best_gain[2]=gain[2];
 
+        		d_gain[gain_idx] *= 1.1;
         		gain_idx = (gain_idx + 1) % 3;
 				gain[gain_idx] += d_gain[gain_idx];
 				Init(gain[0], gain[1], gain[2]);
+
 				state = ASCENT;
 				twiddle_cnt++;
     		} else {
@@ -86,6 +105,9 @@ void PID::Twiddle(double SSE) {
 		case DESCENT:
 		    if (SSE < twiddle_best_sse) {
         		twiddle_best_sse = SSE;
+				best_gain[0]=gain[0];
+                best_gain[1]=gain[1];
+                best_gain[2]=gain[2];
         		d_gain[gain_idx] *= 1.1;
     		} else {
         		gain[gain_idx] += d_gain[gain_idx];
@@ -102,6 +124,6 @@ void PID::Twiddle(double SSE) {
 			std::cout << "[ERROR] - BUG!!!" << std::endl;
 			break;
 	}
-    return;
+    return 0;
 }
 

@@ -10,8 +10,9 @@ public:
   int       twiddle_cnt;
   float     twiddle_best_sse;
   float     d_gain[3]; 
-  float     gain[3];    // current gain, convention Kp, Ki, Kd
-  int       gain_idx;   // index to d_gain/gain, 0: P, 1: I, 2: D
+  float     gain[3];        // current gain, convention Kp, Ki, Kd
+  float     best_gain[3];   // cached gain with best SSE
+  int       gain_idx;       // index to d_gain/gain, 0: P, 1: I, 2: D
   int       state;
 
   /*
@@ -53,7 +54,7 @@ public:
   */
   double TotalError();
 
-  void Twiddle(double SSE);
+  int Twiddle(double SSE);
 };
 
 #endif /* PID_H */
