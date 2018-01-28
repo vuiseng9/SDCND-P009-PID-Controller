@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
     int step = 0;
     float SSE = 0; //sum of square error for twiddle
 
-    args::ArgumentParser parser("an PID controller app that drives Udacity SDC Simulator Lake Track", "This goes after the options.");
+    args::ArgumentParser parser("an PID controller app that drives Udacity SDC Simulator Lake Track", "Running ./pid without any argument invokes best pre-tuned gain.");
     args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
     args::Group gain_grp(parser, "kp, ki, kd need to coexist", args::Group::Validators::AllOrNone);
     args::ValueFlag<float>  kp(gain_grp, "float", "set/initialize proportional gain", {"kp"});
@@ -187,14 +187,8 @@ int main(int argc, char* argv[])
                 SSE = 0;
                 
             } 
-            
-          /*  
-            // Sum of square error - cost function for twiddle
-            // cross track error and also
-
-            SSE += cte*cte;
-            SSE += angle*angle;
-*/
+           
+           //Print out during tuning operation 
             std::cout   << "\repoch: "      << std::setw(3) << pid_steer.twiddle_cnt/3 
                         << ", step: "       << std::setw(4) << step 
                         << ", gain_idx: "   << std::setw(1) << pid_steer.gain_idx 
