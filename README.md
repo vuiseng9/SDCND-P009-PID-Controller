@@ -4,7 +4,7 @@
 
 The goal of this project is to implement a PID controller in C++ to manuever the vehicle around the lake race track in the Udacity Term 2 Simulator. Hyperparameter tuning of Proportional, Integral and Derivative gain is required to ensure a smooth manuever.
 
-> [Demo video of the Final Tuned PID controller](ww)
+> [Demo video of the Final Tuned PID controller](https://youtu.be/_WnPXR4Kx6Q)
 
 ## Program Design
 The PID controller is designed to only actuate steering angle using the cross crack error (CTE) and the speed of vehicle is contrained with a constant throttle of 0.3. The program incorporates the twiddle algoritm outlined in the lesson to tune Proportional, Integral and Derivative term of the contoller. The cost function of the algorithm is a total sum of squared of (1) CTE error (2) steering angle - to minimize overall steering change (3) speed gap to 30 mph - to ensure the vehicle moves.
