@@ -1,15 +1,50 @@
 # PID Controller
 
-*Term 2, Project 9 of Udacity Self-Driving Car Nanodegree, by vuiseng9, Jan 2018*
+*Term 2, Project 9 of Udacity Self-Driving Car Nanodegree, by vuiseng9, Mar 2018*
 
-The goal of this project is to implement a PID controller in C++ to manuever the vehicle around the lake race track in the Udacity Term 2 Simulator. Hyperparameter tuning of Proportional, Integral and Derivative gain is required to ensure a smooth manuever.
+The goal of this project is to implement a PID controller in C++ to manuever the vehicle around the lake race track in the Udacity Term 2 Simulator. The project features a twiddle algoritm for tuning hyperparameter - Proportional, Integral and Derivative gain.
 
-> [Demo video of the Final Tuned PID controller](https://youtu.be/_WnPXR4Kx6Q)
+> [Demo video of the Final Tuned PID controller](https://youtu.be/JHmuiCxp2kM)
 
-## Program Design
-The PID controller is designed to only actuate steering angle using the cross crack error (CTE) and the speed of vehicle is contrained with a constant throttle of 0.3. The program incorporates the twiddle algoritm outlined in the lesson to tune Proportional, Integral and Derivative term of the contoller. The cost function of the algorithm is a total sum of squared of (1) CTE error (2) steering angle - to minimize overall steering change (3) speed gap to 30 mph - to ensure the vehicle moves.
+## Compilation
+```bash
+# Clone this repo
+git clone https://github.com/vuiseng9/SDCND-P009-PID-Controller.git
 
-For easy user tuning, a CLI interface has been designed through [Taywee/args](https://github.com/Taywee/args) to allow setting of the initial conditions of hyperparameters.
+# Make a build directory
+mkdir build && cd build
+
+# Compile
+cmake .. && make
+
+# Run it:
+./pid
+```
+
+## Implementation
+The PID controller is primarily designed to actuate steering angle using the cross crack error (CTE) while throttle is controlled according to the change of car steering angle. 
+```c++
+pid_steer.UpdateError(cte); // call to update p, i, d error term corresponding to cte
+steer_value = pid_steer.TotalError(); // call to calculate (-Kp*p_error) + (-Kd*d_error) + (-Ki*i_error)
+
+/* throttle is reduced proportionally to the change of steering angle
+ * the idea is when change of steering angle is large, it signifies a huge turn
+ * hence we need to slow down or brake */
+throttle_value = 0.5 - 0.3 * fabs(d_angle);
+
+std::cout << "Actuations: throttle: " << throttle_value
+          << ", steer: " << steer_value << std::endl;
+```
+The program incorporates the twiddle algoritm outlined in the lesson to tune Proportional, Integral and Derivative term of the contoller. Please find twiddle implementation from line 57 to 128 in PID.cpp. 
+
+The cost function of the algorithm is a total sum of squared of (1) CTE error - to ensure car close to the reference trajectory, (2) steering angle - to minimize overall large steering usage, (3) speed gap to 40 mph - to ensure the vehicle moves.
+```c++
+// Sum of square error - cost function for twiddle
+SSE += cte*cte;               // minimize the car gap to the reference line
+SSE += angle*angle;           // penalize large angle so that car takes small stering overall
+SSE += pow((40 - speed),2);   // reference speed is 40, ensure car is moving, also as close to reference speed
+```
+For friendly tuning, a CLI interface has been designed through [Taywee/args](https://github.com/Taywee/args) to allow setting of the initial conditions of hyperparameters.
 
 - ``` ./pid ``` The program starts in **autonomous mode** with preset PID gain.
 
@@ -48,19 +83,21 @@ $ ./pid -h
 
     Running ./pid without any argument invokes best pre-tuned gain.
 ```
-## Discussions
-In summary, the effect of Proportional is the speed of reducing the CTE error. The larger the P value, the faster the controller to close the gap of error. However if it is set too large, the vehicle will start wobbling and especially in a curvy road, the CTE is dynamic, the wobbling becomes larger and vehicle would be gone out of control.
+## Reflections 
+The proportional(**P**) gain is basically a scale to how much steering angle to apply w.r.t the gap to the reference trajectory, ie cross track error (CTE). So when we apply this gain, the nearer the car to the reference, the smaller the steering angle will be. And the larger the P gain, the faster the car close the CTE. However, with only P gain, the car will tend to overshoot along the reference. It is also noticed that in a curvy road, the CTE is dynamic, the wobbling becomes larger and the vehicle will be gone out of control.
 
-The Integral term is to zero the CTE error by multiplying a term to sum of error over time. Since it is a multipler to the total error over time, the I term is generally a lot smaller than P and D value. Experiment have been carried out that the vehicle is able to complete the track without an I term.
+This is when the derivative(**D**) gain comes into the picture. The D gain is proportional to the CTE change rate. We can notice that with the additional derivative term, the car resists to fast change that proportional term requires, this derivative term effect is known as damping. However, we can't see much effect with low D gain, the car still overshoots, this is known as underdamped. With high D gain, the effect is overdamped, the car takes very long to follow the reference. Hence, we need to tune an appropriate D gain to achieve the right speed of tracking and best without overshoot, this is referred as critically damped.
 
-The D term is useful during the curve because it's a term acting proportinally to the change of CTE. During the curve of the during, the error CTE is changed to a larger degree. The D acts as a look-ahead agent and putting a corresponding actuation to that. This makes the vehicle can respond quick enough during the curve of the road.
+The integral(**I**) gain is a proportion to the history of error, the controller basically accumulates all the historical error and multiplies it with the integral gain. The historical sum is also known as steady state error, which may not be effectively handled by P & D gain, hence the I gain is handy for this case. Though, in the lake track, it seemed hard to notice the steady state error as the track itself is dynamic.
 
-The process of getting the optimal gain value began with setting 200 steps per iteration in twiddle mode and using initial kp,ki,kd of 0 and dp,di,dd of 1. The idea of limiting smaller steps per twiddle is to quickly proxy the operating region of kp,ki,kd because if the vehicle could drive the first 200 steps that covers some profile of the track, chances of it to complete whole track is higher and optimal gain term would not be far away. Also, the rate of ascent and descent of dp,di,dd is fixed at only 10% (1.1 or 0.9) and we would spend tonnes of cycles iterating on unhelpful gain term. (Maybe rate of ascent/descent can be implemented through something like deep learning momento learning rate? hmm...) 
+#### Path to solution
+The process of getting the optimal gain value began with setting 200 steps per iteration in twiddle mode and using initial kp, ki, kd of 0 and dp, di, dd of 1. Limiting smaller steps per twiddle can quickly proxy the operating region of kp, ki, kd because if the vehicle could drive the first 200 steps that covered some profile of the track, chances of it to complete whole track is higher and optimal gain terms would not be far away. Also, the rate of ascent and descent of dp, di, dd is fixed at only 10% (1.1 or 0.9) and we would spend tonnes of cycles iterating on unhelpful gain term. (Maybe rate of ascent/descent can be implemented through something like deep learning momento learning rate? hmm...) 
 
-With that, we settled at somewhere about kp=0.05, ki=0.002, kd=0.7. The final round of twiddle tuning was performed with 800 steps per iteration which covered a single lap, setting initial kp=0.05, ki=0.002, kd=0.7 and range of change to dd=0.05 di=0.002 ,dd=0.5. After a few hours, we obtained the final tuned value of **kp=0.0547, ki=0.0014, kd=0.7**.
+With that, we settled at somewhere about kp=0.05, ki=0.002, kd=0.7. The final round of twiddle tuning was performed with 800 steps per iteration which covered a single lap, setting initial kp=0.05, ki=0.002, kd=0.7 and range of change to dd=0.05 di=0.002 ,dd=0.5. After a few hours, we obtained a tuned value of **kp=0.0547, ki=0.0014, kd=0.7**. **Yet**, the ride throughout the course was smooth but the car was slightly going out of the boundary at sharp turning. The reason was probably that the cost function was only a global error measure and the gain terms were tuned to minimize global error but the local error in the short span around the turning was not focused. Hence, a further manual tuning was performed and finally we settled at **kp=0.15, ki=0.001, kd=0.6** to keep the vehicle within the road boundary.
 
-The final thought is that the current PID controller is simplistic and probably works on tracks of similar profile, it is not only because of the subjective tuning but also the cost function does not consider disturbances of the vehicle where we have assumed ideal (means we neglect) in this exercise.
+The final thought is that the current PID controller is simplistic and probably works on tracks of similar profile but it is not adaptive when other disturbances come into the picture. It is also clear that it does not have look-ahead capability as it is tuned purely based on historical error. Hence, other techniques and robustness design need to be coupled for practical deployment. 
 
+Overall, the controller achieves the specification to drive within the lane, we would not say the car are critically damped but it works well at certain stretch of the track.
 
 ### **From this point onwards, the content is a duplicate of original readme from udacity repo.**
 -----

@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
     int step = 0;
     float SSE = 0; //sum of square error for twiddle
 
-    args::ArgumentParser parser("an PID controller app that drives Udacity SDC Simulator Lake Track", "Running ./pid without any argument invokes best pre-tuned gain.");
+    args::ArgumentParser parser("an PID controller app that drives Udacity SDC Simulator Lake Track", "Running ./pid without any argument invokes pre-tuned gain.");
     args::HelpFlag help(parser, "help", "Display help menu", {'h', "help"});
     args::Group gain_grp(parser, "kp, ki, kd need to coexist", args::Group::Validators::AllOrNone);
     args::ValueFlag<float>  kp(gain_grp, "float", "set/initialize proportional gain", {"kp"});
@@ -51,8 +51,6 @@ int main(int argc, char* argv[])
     args::ValueFlag<float>  dp(dgain_grp, "float", "kp max tunable range", {"dp"});
     args::ValueFlag<float>  di(dgain_grp, "float", "ki max tunable range", {"di"});
     args::ValueFlag<float>  dd(dgain_grp, "float", "kd max tunable range", {"dd"});
-
-    args::ValueFlagList<char> characters(parser, "characters", "The character flag", {"cp"});
 
     try
     {
@@ -99,9 +97,9 @@ int main(int argc, char* argv[])
         pid_steer.gain[2] = args::get(kd);
     } else {
         std::cout << "[Info] Use pretuned kp, ki, kd" << std::endl;
-        pid_steer.gain[0] = 0.0547; //0.05;
-        pid_steer.gain[1] = 0.0014; //0.002;
-        pid_steer.gain[2] = 0.7;    //0.7;
+        pid_steer.gain[0] = 0.15; 
+        pid_steer.gain[1] = 0.001;
+        pid_steer.gain[2] = 0.6;
     }
     
     std::cout << "[Info] Initializing PID for steering with kp: " << 
@@ -133,6 +131,7 @@ int main(int argc, char* argv[])
     }
  
   	h.onMessage([&pid_steer, &step, &SSE](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+    static double previous_angle = 0;
     step++;
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -149,19 +148,25 @@ int main(int argc, char* argv[])
           double speed = std::stod(j[1]["speed"].get<std::string>());
           double angle = std::stod(j[1]["steering_angle"].get<std::string>());
           double steer_value;
+          double throttle_value;
+
+          double d_angle;
+          d_angle = previous_angle - angle;
+          previous_angle = angle;
 
           std::cout.precision(3);
  
           if (!pid_steer.is_twiddle) {         
           std::cout << "cte: "      << std::setw(8) << cte 
                     << ", speed: "  << std::setw(8) << speed 
-                    << ", angle: "  << std::setw(8) << angle << std::endl;
+                    << ", angle: "  << std::setw(8) << angle 
+                    << ", d_angle: "  << std::setw(8) << d_angle 
+                    << std::endl;
           }
           // Sum of square error - cost function for twiddle
-          // cross track error and also
-          SSE += cte*cte;
-          SSE += angle*angle;
-          SSE += pow((30 - speed),2); //reference speed is 30
+          SSE += cte*cte;               // minimize the car gap to the reference line
+          SSE += angle*angle;           // penalize large angle so that car takes small angle overall
+          SSE += pow((40 - speed),2);   //reference speed is 40, ensure car is moving, also as close to reference speed
 
           /*
           * TODO: Calcuate steering value here, remember the steering value is
@@ -185,7 +190,6 @@ int main(int argc, char* argv[])
                 // reset step count and SSE accumulator
                 step = 0;
                 SSE = 0;
-                
             } 
            
            //Print out during tuning operation 
@@ -204,16 +208,22 @@ int main(int argc, char* argv[])
 
           } 
 
-          pid_steer.UpdateError(cte);
-          steer_value = pid_steer.TotalError();
-        
-          // DEBUG
-          // std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
-          
+
+          pid_steer.UpdateError(cte); // call to update p, i, d error term corresponding to cte
+          steer_value = pid_steer.TotalError(); // call to calculate (-Kp*p_error) + (-Kd*d_error) + (-Ki*i_error)
+
+		  /* throttle is reduced proportionally to the change of steering angle
+ 		   * the idea is when change of steering angle is large, it signifies a huge turn
+ 		   * hence we need to slow down or brake */
+		  throttle_value = 0.5 - 0.3 * fabs(d_angle);
+    
+		  std::cout << "Actuations: throttle: " << throttle_value
+          		    << ", steer: " << steer_value << std::endl;
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
-          msgJson["throttle"] = 0.3;
+          msgJson["throttle"] = throttle_value;
+         
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           // std::cout << step << ": "<< msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
